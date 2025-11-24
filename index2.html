@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
+  <title>NFC Flashcard JPD123 (Firebase)</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+  />
+  <!-- Google Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Roboto", "sans-serif"],
+            jp: ["Noto Sans JP", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .perspective-1000 {
+      perspective: 1000px;
+    }
+    .transform-style-3d {
+      transform-style: preserve-3d;
+    }
+    .backface-hidden {
+      backface-visibility: hidden;
+    }
+    .card-inner {
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card-flip .card-inner {
+      transform: rotateY(180deg);
+    }
+    .kanji-glow {
+      text-shadow: 0 0 20px rgba(167, 139, 250, 0.8);
+    }
+    ruby {
+      display: inline-flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      vertical-align: bottom;
+    }
+    rt {
+      font-size: 0.6em;
+      line-height: 1;
+      margin-bottom: 2px;
+      user-select: none;
+    }
+    .card-image {
+      width: 100%;
+      max-width: 100%;
+      object-fit: cover;
+      border-radius: 16px;
+      pointer-events: none;
+      margin: 0 auto;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    .card-image-front {
+      height: 180px;
+    }
+    .card-image-back {
+      width: 70%;
+      max-width: 70%;
+      height: 90px;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body
+  class="bg-slate-900 text-white font-sans min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 selection:bg-purple-500 selection:text-white"
+>
+  <div
+    id="app"
+    class="max-w-md mx-auto min-h-screen relative shadow-2xl bg-black/20 flex flex-col"
+  >
+    <!-- Toast -->
+    <div
+      id="toast"
+      class="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full shadow-lg opacity-0 pointer-events-none transition-all z-50 text-sm border border-slate-600 flex items-center gap-2"
+    >
+      <i class="fas fa-info-circle text-purple-400"></i>
+      <span id="toast-msg">Thông báo</span>
+    </div>
+
+    <!-- LOGIN -->
+    <section
+      id="screen-login"
+      class="p-6 flex flex-col justify-center min-h-screen"
+    >
+      <div class="text-center mb-8">
+        <div
+          class="w-20 h-20 bg-gradient-to-tr from-purple-500 to-pink-500 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-purple-500/30"
+        >
+          <span class="text-4xl font-bold text-white">JP</span>
+        </div>
+        <h1 class="text-3xl font-bold mb-2">JPD123 Firebase</h1>
+        <p class="text-slate-400 text-sm">
+          Flashcard đồng bộ realtime (GV &amp; HS)
+        </p>
+      </div>
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="text-xs text-slate-400 uppercase">Họ và tên</label>
+          <input
+            type="text"
+            id="login-name"
+            class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 focus:border-purple-500 outline-none"
+            required
+          />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 uppercase">Email FPT</label>
+          <input
+            type="email"
+            id="login-email"
+            class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 focus:border-purple-500 outline-none"
+            required
+          />
+        </div>
+        <div id="class-input-group">
+          <label class="text-xs text-slate-400 uppercase">Mã lớp</label>
+          <input
+            type="text"
+            id="login-class"
+            class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 focus:border-purple-500 outline-none"
+          />
+        </div>
+        <button
+          type="submit"
+          class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3 rounded-xl mt-6 flex justify-center items-center gap-2"
+        >
+          <span>Đăng Nhập</span>
+          <i id="login-spinner" class="fas fa-spinner fa-spin hidden"></i>
+        </button>
+      </form>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="screen-dashboard" class="hidden min-h-screen pb-20">
+      <header class="p-6 pb-2 flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-bold">
+            Xin chào, <span id="user-display-name" class="text-purple-400"></span>
+          </h2>
+          <p class="text-xs text-slate-400" id="user-role-display">Học sinh</p>
+        </div>
+        <button
+          onclick="logout()"
+          class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-slate-700 border border-slate-700"
+        >
+          <i class="fas fa-sign-out-alt text-slate-400"></i>
+        </button>
+      </header>
+
+      <div class="px-6 pb-2">
+        <div
+          class="flex items-center gap-2 text-xs text-emerald-400"
+          id="connection-status"
+        >
+          <span class="relative flex h-2 w-2">
+            <span
+              class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"
+            ></span>
+          </span>
+          Đang dùng Firebase (realtime)
+        </div>
+      </div>
+
+      <div class="p-6">
+        <h3 class="text-sm uppercase font-bold text-slate-500 mb-4">
+          Chọn bài học
+        </h3>
+        <div class="grid grid-cols-2 gap-4" id="lesson-grid"></div>
+
+        <!-- Giáo viên -->
+        <div id="teacher-dashboard-controls" class="hidden mt-8 space-y-3">
+          <h3 class="text-sm uppercase font-bold text-slate-500 mb-4">
+            Quản lý
+          </h3>
+          <button
+            onclick="app.navigateTo('teacher-progress')"
+            class="w-full bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:bg-slate-750"
+          >
+            <div class="flex items-center gap-3">
+              <div
+                class="w-10 h-10 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center"
+              >
+                <i class="fas fa-chart-pie"></i>
+              </div>
+              <div class="text-left">
+                <div class="font-bold text-sm">Tiến độ học sinh</div>
+                <div class="text-xs text-slate-400">Lấy từ Firebase</div>
+              </div>
+            </div>
+            <i class="fas fa-chevron-right text-slate-600"></i>
+          </button>
+        </div>
+
+        <!-- Học sinh -->
+        <div id="student-dashboard-summary" class="hidden mt-8">
+          <h3 class="text-sm uppercase font-bold text-slate-500 mb-4">
+            Tiến độ cá nhân
+          </h3>
+          <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4">
+            <div class="flex justify-between text-sm mb-2">
+              <span class="text-slate-300">Đã thuộc</span>
+              <span
+                class="text-green-400 font-bold"
+                id="dash-mastered-count"
+                >0</span
+              >
+            </div>
+            <div class="w-full bg-slate-700 rounded-full h-2.5 mb-4">
+              <div
+                id="dash-progress-bar"
+                class="bg-gradient-to-r from-green-400 to-emerald-500 h-2.5 rounded-full"
+                style="width: 0%"
+              ></div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center text-xs">
+              <div class="bg-slate-800/50 p-2 rounded-lg">
+                <div
+                  class="text-blue-400 font-bold text-lg"
+                  id="dash-learning"
+                >
+                  0
+                </div>
+                <div>Đang học</div>
+              </div>
+              <div class="bg-slate-800/50 p-2 rounded-lg">
+                <div
+                  class="text-orange-400 font-bold text-lg"
+                  id="dash-review"
+                >
+                  0
+                </div>
+                <div>Cần ôn</div>
+              </div>
+              <div class="bg-slate-800/50 p-2 rounded-lg">
+                <div class="text-green-400 font-bold text-lg" id="dash-done">
+                  0
+                </div>
+                <div>Thuộc</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TEACHER MANAGER -->
+    <section
+      id="screen-teacher-manager"
+      class="hidden min-h-screen pb-20 bg-slate-900"
+    >
+      <header
+        class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between"
+      >
+        <button
+          onclick="app.navigateTo('dashboard')"
+          class="text-slate-400 hover:text-white"
+        >
+          <i class="fas fa-arrow-left mr-2"></i>Quay lại
+        </button>
+        <h2 class="font-bold text-lg">
+          Bài <span id="mgr-lesson-num"></span>
+        </h2>
+        <button
+          onclick="teacherMgr.showAddModal()"
+          class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-purple-500"
+        >
+          <i class="fas fa-plus"></i>
+        </button>
+      </header>
+      <div class="p-4">
+        <div id="teacher-word-list" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- TEACHER PROGRESS -->
+    <section id="screen-teacher-progress" class="hidden min-h-screen bg-slate-900">
+      <header
+        class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between"
+      >
+        <button
+          onclick="app.navigateTo('dashboard')"
+          class="text-slate-400 hover:text-white"
+        >
+          <i class="fas fa-arrow-left mr-2"></i>Quay lại
+        </button>
+        <h2 class="font-bold text-lg">Tiến độ (Firebase)</h2>
+
+        <!-- MENU 3 CHẤM -->
+        <div class="relative">
+          <button
+            onclick="document.getElementById('menu-progress-actions').classList.toggle('hidden')"
+            class="text-slate-400 hover:text-white p-2"
+          >
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+
+          <div
+            id="menu-progress-actions"
+            class="hidden absolute right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-52 text-xs z-50"
+          >
+            <button
+              onclick="teacherStats.confirmResetClass();document.getElementById('menu-progress-actions').classList.add('hidden');"
+              class="w-full text-left px-3 py-2 text-yellow-300 hover:bg-slate-700 border-b border-slate-700"
+            >
+              Xóa tiến độ lớp đang chọn
+            </button>
+            <button
+              onclick="teacherStats.confirmResetAll();document.getElementById('menu-progress-actions').classList.add('hidden');"
+              class="w-full text-left px-3 py-2 text-red-300 hover:bg-red-900/40"
+            >
+              Xóa TOÀN BỘ tiến độ
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-4">
+        <div class="mb-4">
+          <label class="text-xs text-slate-500 uppercase font-bold block mb-1"
+            >Chọn lớp</label
+          >
+          <select
+            id="teacher-class-select"
+            onchange="teacherStats.renderStudents()"
+            class="w-full bg-slate-800 text-white border border-slate-700 rounded-lg p-2 outline-none text-sm"
+          >
+            <option value="">(Tất cả)</option>
+          </select>
+        </div>
+
+        <p class="text-[10px] text-slate-500 italic mb-3">
+          * Chỉ xóa dữ liệu tiến độ (đã thuộc / ôn lại). Từ vựng giáo viên tạo
+          <span class="text-green-400">không bị xóa</span>.
+        </p>
+
+        <div id="student-list-container" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- STUDENT STUDY -->
+    <section
+      id="screen-student-study"
+      class="hidden h-screen flex flex-col bg-slate-900"
+    >
+      <header
+        class="p-4 flex justify-between items-center bg-slate-900 z-10 shrink-0"
+      >
+        <button
+          onclick="app.navigateTo('dashboard')"
+          class="w-8 h-8 flex items-center justify-center text-slate-400"
+        >
+          <i class="fas fa-times text-xl"></i>
+        </button>
+        <div class="font-mono text-sm text-slate-400">
+          <span id="fc-current-index">1</span> /
+          <span id="fc-total">0</span>
+        </div>
+        <button
+          onclick="studentStudy.toggleShuffle()"
+          id="btn-shuffle"
+          class="text-slate-400 hover:text-purple-400 transition-colors"
+        >
+          <i class="fas fa-random"></i>
+        </button>
+      </header>
+
+      <div class="w-full bg-slate-800 h-1 shrink-0">
+        <div
+          id="fc-progress-bar"
+          class="bg-purple-500 h-1 transition-all duration-300"
+          style="width: 0%"
+        ></div>
+      </div>
+
+      <div
+        class="flex-1 flex flex-col items-center justify-center p-4 relative overflow-hidden"
+      >
+        <div
+          class="perspective-1000 w-full h-full max-h-[550px] cursor-pointer group relative"
+          onclick="studentStudy.flipCard()"
+        >
+          <div
+            id="flashcard-inner"
+            class="card-inner w-full h-full relative transform-style-3d shadow-2xl shadow-black/50 rounded-3xl"
+          >
+            <!-- FRONT -->
+            <div
+              class="absolute w-full h-full backface-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-3xl z-20 overflow-hidden flex flex-col justify-between"
+            >
+              <div
+                class="flex justify-between p-4 shrink-0 relative z-30 select-none"
+              >
+                <div
+                  onclick="event.stopPropagation();studentStudy.playAudio()"
+                  class="p-2 bg-black/20 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <i class="fas fa-volume-up text-slate-300 text-xl"></i>
+                </div>
+              </div>
+
+              <div
+                class="flex-1 flex flex-col items-center justify-start w-full px-4 pt-4 relative z-20"
+              >
+                <div
+                  id="fc-image-container-front"
+                  class="hidden mb-6 w-full px-6 flex justify-center"
+                >
+                  <img
+                    id="fc-image-front"
+                    src=""
+                    alt="Minh họa"
+                    class="card-image card-image-front"
+                  />
+                </div>
+                <div class="w-full text-center shrink-0">
+                  <h1
+                    id="fc-kanji-front"
+                    class="kanji-glow text-5xl md:text-7xl font-jp font-bold text-white tracking-wide leading-tight break-words relative z-50 drop-shadow-lg"
+                  ></h1>
+                </div>
+              </div>
+
+              <div
+                class="h-10 w-full flex items-center justify-center text-xs text-purple-300 uppercase tracking-widest font-bold animate-pulse shrink-0 bg-black/10 z-30"
+              >
+                <span
+                  ><i class="fas fa-hand-pointer mr-1"></i> Chạm để lật</span
+                >
+              </div>
+            </div>
+
+            <!-- BACK -->
+            <div
+              class="absolute w-full h-full backface-hidden rotate-y-180 bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-3xl p-4 flex flex-col z-10 overflow-hidden"
+            >
+              <div
+                class="text-center mb-2 pb-2 border-b border-slate-700/50 mt-2 overflow-y-auto shrink-0"
+                style="max-height: 45%"
+              >
+                <div
+                  id="fc-image-container-back"
+                  class="hidden w-full flex justify-center items-center mb-2"
+                >
+                  <img
+                    id="fc-image-back"
+                    src=""
+                    alt="Minh họa"
+                    class="card-image card-image-back"
+                  />
+                </div>
+                <div
+                  id="fc-kanji-back"
+                  class="text-3xl font-jp font-bold mb-1 text-white"
+                ></div>
+                <h2
+                  id="fc-meaning-vi"
+                  class="text-lg font-bold text-purple-300 mb-0 mt-1"
+                ></h2>
+                <p
+                  id="fc-romaji"
+                  class="text-xs text-slate-500 font-mono"
+                ></p>
+              </div>
+
+              <div
+                class="flex-1 space-y-2 overflow-y-auto pr-1 pb-4 scrollbar-hide"
+                id="fc-examples"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="w-full mt-6 grid grid-cols-5 gap-2 max-w-sm mx-auto shrink-0"
+        >
+          <button
+            onclick="studentStudy.prevCard()"
+            class="bg-slate-800 h-12 rounded-full text-slate-400 hover:bg-slate-700"
+          >
+            <i class="fas fa-undo"></i>
+          </button>
+          <button
+            onclick="studentStudy.markStatus('review')"
+            class="col-span-2 bg-slate-800 h-12 rounded-full text-orange-400 font-bold border border-orange-500/30 hover:bg-orange-500/10 text-xs sm:text-sm"
+          >
+            <i class="fas fa-sync-alt mr-1"></i>Ôn lại
+          </button>
+          <button
+            onclick="studentStudy.markStatus('mastered')"
+            class="bg-green-600 h-12 rounded-full text-white shadow-lg hover:bg-green-500"
+          >
+            <i class="fas fa-check"></i>
+          </button>
+          <button
+            onclick="studentStudy.nextCard()"
+            class="bg-slate-800 h-12 rounded-full text-purple-400 hover:bg-slate-700"
+          >
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODAL THÊM/SỬA TỪ -->
+    <div
+      id="modal-word"
+      class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    >
+      <div
+        class="bg-slate-900 w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-slate-700 max-h-[90vh] flex flex-col"
+      >
+        <div
+          class="p-4 border-b border-slate-800 flex justify-between items-center"
+        >
+          <h3 class="font-bold text-lg">Thông tin từ vựng</h3>
+          <button
+            onclick="teacherMgr.closeModal()"
+            class="text-slate-400 hover:text-white"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="p-4 overflow-y-auto space-y-4 flex-1 text-sm">
+          <input type="hidden" id="word-mode" />
+          <input type="hidden" id="word-doc-id" />
+
+          <div>
+            <label class="text-xs text-slate-500 block mb-1"
+              >ID (dùng cho NFC/URL)</label
+            >
+            <input
+              type="text"
+              id="inp-id"
+              class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm font-mono text-yellow-400"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs text-slate-500 block mb-1">Kanji</label>
+              <input
+                type="text"
+                id="inp-kanji"
+                class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 block mb-1">Hiragana</label>
+              <input
+                type="text"
+                id="inp-furigana"
+                class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 block mb-1">Romaji</label>
+              <input
+                type="text"
+                id="inp-romaji"
+                class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 block mb-1">Nghĩa Việt</label>
+              <input
+                type="text"
+                id="inp-vi"
+                class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div class="border border-slate-700 p-3 rounded bg-slate-800/50">
+            <label class="text-xs text-slate-400 block mb-2 font-bold uppercase"
+              >Hình ảnh minh họa</label
+            >
+            <input
+              type="file"
+              id="inp-image-file"
+              accept="image/*"
+              class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700 cursor-pointer"
+            />
+            <div id="preview-image-container" class="mt-2 hidden">
+              <img
+                id="preview-image"
+                src=""
+                class="h-20 rounded object-contain border border-slate-600"
+              />
+            </div>
+            <input type="hidden" id="inp-image-base64" />
+          </div>
+
+          <div class="border-t border-slate-800 pt-3">
+            <label class="text-xs text-slate-500 block mb-2 font-bold"
+              >Câu ví dụ</label
+            >
+            <div id="example-inputs-container" class="space-y-3"></div>
+          </div>
+        </div>
+        <div
+          class="p-4 border-t border-slate-800 grid grid-cols-2 gap-4 text-sm"
+        >
+          <button
+            onclick="teacherMgr.closeModal()"
+            class="py-2 text-slate-400 hover:text-white"
+          >
+            Hủy
+          </button>
+          <button
+            onclick="teacherMgr.saveWord()"
+            class="py-2 bg-purple-600 rounded-lg text-white font-bold"
+          >
+            Lưu
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase + App -->
+  <script type="module">
+    // ====================== FIREBASE SETUP ======================
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      getDoc,
+      onSnapshot,
+      query,
+      where,
+      getDocs,
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+    // firebaseConfig của bạn (đÃ dán sẵn)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrqjLnXOanGUuBtuxSO9_LBGwk2UiBHOs",
+      authDomain: "jpd123-fc72a.firebaseapp.com",
+      projectId: "jpd123-fc72a",
+      storageBucket: "jpd123-fc72a.firebasestorage.app",
+      messagingSenderId: "590811339308",
+      appId: "1:590811339308:web:c32769114192b1b0b94f89",
+      measurementId: "G-Y7MSD0ZRTL",
+    };
+
+    const fbApp = initializeApp(firebaseConfig);
+    const db = getFirestore(fbApp);
+
+    // ====================== TIỆN ÍCH CHUNG ======================
+    const LESSONS = [4, 5, 6, 7];
+    const STUDENT_DOMAIN = "@fpt.edu.vn";
+    const TEACHER_DOMAINS = ["@fe.edu.vn", "@fpt.com.vn"];
+    const SPECIAL_TEACHERS = [
+      "anhbpsa180223@fpt.edu.vn",
+      "oanhvttsa170012@fpt.edu.vn",
+      "thuthasa180107@fpt.edu.vn",
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const showScreen = (id) => {
+      document
+        .querySelectorAll("section[id^='screen-']")
+        .forEach((el) => el.classList.add("hidden"));
+      $(id).classList.remove("hidden");
+    };
+    const toastEl = $("toast");
+    const toastMsgEl = $("toast-msg");
+    const showToast = (msg) => {
+      toastMsgEl.textContent = msg;
+      toastEl.classList.remove("opacity-0");
+      setTimeout(() => toastEl.classList.add("opacity-0"), 2000);
+    };
+
+    const speakJP = (text) => {
+      if (!text) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      window.speechSynthesis.speak(u);
+    };
+
+    const generateRubyHtml = (kanji, furigana) => {
+      if (!furigana || furigana === kanji) return kanji;
+      return `<ruby>${kanji}<rt>${furigana}</rt></ruby>`;
+    };
+
+    const compressImage = (file, callback) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          const MAX_SIZE = 800;
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            if (w > MAX_SIZE) {
+              h = (h * MAX_SIZE) / w;
+              w = MAX_SIZE;
+            }
+          } else {
+            if (h > MAX_SIZE) {
+              w = (w * MAX_SIZE) / h;
+              h = MAX_SIZE;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          callback(dataUrl);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // ====================== TRẠNG THÁI TOÀN CỤC ======================
+    const session = {
+      user: null,
+      currentLesson: null,
+      studyList: [],
+      currentIndex: 0,
+      isShuffle: false,
+      wordsByLesson: {}, // lesson -> array
+      progressDocs: [], // list dùng cho teacherStats
+    };
+
+    window.logout = () => {
+      localStorage.removeItem("jpd123_firebase_user");
+      location.reload();
+    };
+
+    // ====================== FIREBASE LỚP WORDS ======================
+    const wordDocId = (lesson, id) => `${lesson}_${id}`;
+
+    const cloudWords = {
+      subscribeLesson(lesson, cb) {
+        const q = query(
+          collection(db, "words"),
+          where("lesson", "==", Number(lesson))
+        );
+        return onSnapshot(q, (snap) => {
+          const arr = [];
+          snap.forEach((d) => arr.push({ docId: d.id, ...d.data() }));
+          session.wordsByLesson[lesson] = arr;
+          cb(arr);
+        });
+      },
+
+      async saveWord(word, docId) {
+        const id = docId || wordDocId(word.lesson, word.id);
+        await setDoc(doc(db, "words", id), word, { merge: true });
+      },
+
+      async deleteWord(docId) {
+        await deleteDoc(doc(db, "words", docId));
+      },
+
+      async loadWordByLessonAndId(lesson, id) {
+        const wId = wordDocId(lesson, id);
+        const d = await getDoc(doc(db, "words", wId));
+        if (d.exists()) return { docId: d.id, ...d.data() };
+        return null;
+      },
+    };
+
+    // ====================== FIREBASE LỚP PROGRESS ======================
+    const cloudProgress = {
+      subscribeAll(cb) {
+        return onSnapshot(collection(db, "progress"), (snap) => {
+          const arr = [];
+          snap.forEach((d) => arr.push({ id: d.id, ...d.data() }));
+          session.progressDocs = arr;
+          cb(arr);
+        });
+      },
+
+      async saveStudentProgress(email, data) {
+        await setDoc(doc(db, "progress", email), data, { merge: true });
+      },
+
+      async resetAll() {
+        const snap = await getDocs(collection(db, "progress"));
+        const ids = [];
+        snap.forEach((d) => ids.push(d.id));
+        for (const id of ids) {
+          await deleteDoc(doc(db, "progress", id));
+        }
+      },
+
+      async resetClass(className) {
+        const q = query(
+          collection(db, "progress"),
+          where("className", "==", className)
+        );
+        const snap = await getDocs(q);
+        const ids = [];
+        snap.forEach((d) => ids.push(d.id));
+        for (const id of ids) {
+          await deleteDoc(doc(db, "progress", id));
+        }
+      },
+    };
+
+    // ====================== APP LOGIC ======================
+    const app = {
+      async init() {
+        // setup example inputs
+        const exContainer = $("example-inputs-container");
+        exContainer.innerHTML = Array.from({ length: 5 })
+          .map(
+            (_, i) => `
+          <div class="bg-slate-800/50 p-2 rounded border border-slate-700/50 flex gap-2">
+            <input id="inp-ex-jp-${i}" class="w-1/2 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" placeholder="Câu Nhật">
+            <input id="inp-ex-vi-${i}" class="w-1/2 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" placeholder="Nghĩa Việt">
+          </div>`
+          )
+          .join("");
+
+        $("inp-image-file").addEventListener("change", (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          compressImage(file, (base64) => {
+            $("inp-image-base64").value = base64;
+            $("preview-image").src = base64;
+            $("preview-image-container").classList.remove("hidden");
+          });
+        });
+
+        $("login-form").addEventListener("submit", app.handleLogin);
+
+        const saved = localStorage.getItem("jpd123_firebase_user");
+        if (saved) {
+          session.user = JSON.parse(saved);
+          app.afterLogin();
+        } else {
+          showScreen("screen-login");
+        }
+      },
+
+      handleLogin(e) {
+        e.preventDefault();
+        $("login-spinner").classList.remove("hidden");
+        setTimeout(() => {
+          const name = $("login-name").value.trim();
+          const email = $("login-email").value.trim().toLowerCase();
+          const className = $("login-class").value.trim();
+
+          let role = null;
+          if (
+            SPECIAL_TEACHERS.includes(email) ||
+            TEACHER_DOMAINS.some((d) => email.endsWith(d))
+          ) {
+            role = "teacher";
+          } else if (email.endsWith(STUDENT_DOMAIN)) {
+            role = "student";
+          }
+
+          if (!role) {
+            $("login-spinner").classList.add("hidden");
+            alert("Email không hợp lệ / không thuộc domain FPT!");
+            return;
+          }
+
+          session.user = { name, email, className, role };
+          localStorage.setItem(
+            "jpd123_firebase_user",
+            JSON.stringify(session.user)
+          );
+          app.afterLogin();
+        }, 400);
+      },
+
+      afterLogin() {
+        $("user-display-name").textContent = session.user.name;
+        $("user-role-display").textContent =
+          session.user.role === "teacher"
+            ? "Giáo viên"
+            : `Học sinh - ${session.user.className || "N/A"}`;
+
+        $("lesson-grid").innerHTML = LESSONS.map(
+          (n) => `
+          <div onclick="app.selectLesson(${n})"
+            class="bg-slate-800 border border-slate-700 p-4 rounded-2xl flex flex-col items-center justify-center aspect-square hover:bg-slate-700 cursor-pointer active:scale-95">
+            <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xl font-bold shadow-lg mb-2">${n}</div>
+            <span class="font-bold text-slate-300">Bài ${n}</span>
+          </div>`
+        ).join("");
+
+        if (session.user.role === "teacher") {
+          $("teacher-dashboard-controls").classList.remove("hidden");
+          $("student-dashboard-summary").classList.add("hidden");
+          cloudProgress.subscribeAll(() => {
+            teacherStats.refreshClassOptions();
+          });
+        } else {
+          $("teacher-dashboard-controls").classList.add("hidden");
+          $("student-dashboard-summary").classList.remove("hidden");
+          cloudProgress.subscribeAll(() => {
+            app.updateStudentDashboard();
+          });
+        }
+
+        const params = new URLSearchParams(location.search);
+        const lesson = params.get("lesson");
+        const id = params.get("id");
+        if (lesson && id) {
+          app.openDirectWord(Number(lesson), id);
+        } else {
+          showScreen("screen-dashboard");
+        }
+      },
+
+      async openDirectWord(lesson, id) {
+        session.currentLesson = lesson;
+        const w = await cloudWords.loadWordByLessonAndId(lesson, id);
+        if (!w) {
+          showToast("Không tìm thấy từ vựng này trên Firebase");
+          showScreen("screen-dashboard");
+          return;
+        }
+        session.studyList = [w];
+        session.currentIndex = 0;
+        studentStudy.render();
+        showScreen("screen-student-study");
+      },
+
+      selectLesson(lesson) {
+        session.currentLesson = lesson;
+        if (session.user.role === "teacher") {
+          teacherMgr.init(lesson);
+          showScreen("screen-teacher-manager");
+        } else {
+          studentStudy.initLesson(lesson);
+          showScreen("screen-student-study");
+        }
+      },
+
+      updateStudentDashboard() {
+        if (!session.user) return;
+        const docData = session.progressDocs.find(
+          (d) => d.id === session.user.email
+        );
+        if (!docData || !docData.progress) {
+          $("dash-learning").textContent = "0";
+          $("dash-review").textContent = "0";
+          $("dash-done").textContent = "0";
+          $("dash-mastered-count").textContent = `0/0`;
+          $("dash-progress-bar").style.width = "0%";
+          return;
+        }
+        const p = docData.progress;
+        let mastered = 0,
+          review = 0,
+          learning = 0;
+        Object.values(p).forEach((st) => {
+          if (st.status === "mastered") mastered++;
+          else if (st.status === "review") review++;
+          else learning++;
+        });
+
+        const total = mastered + review + learning || 1;
+        $("dash-learning").textContent = learning;
+        $("dash-review").textContent = review;
+        $("dash-done").textContent = mastered;
+        $("dash-mastered-count").textContent = `${mastered}/${total}`;
+        $("dash-progress-bar").style.width = `${(mastered / total) * 100}%`;
+      },
+
+      navigateTo(screen) {
+        if (screen === "dashboard") {
+          showScreen("screen-dashboard");
+        } else if (screen === "teacher-progress") {
+          showScreen("screen-teacher-progress");
+          teacherStats.refreshClassOptions();
+          teacherStats.renderStudents();
+        } else {
+          showScreen("screen-" + screen);
+        }
+      },
+    };
+
+    // ====================== TEACHER MANAGER ======================
+    const teacherMgr = {
+      unsub: null,
+      currentLesson: null,
+      currentWords: [],
+
+      init(lesson) {
+        this.currentLesson = lesson;
+        $("mgr-lesson-num").textContent = lesson;
+
+        if (this.unsub) this.unsub();
+        this.unsub = cloudWords.subscribeLesson(lesson, (words) => {
+          this.currentWords = words;
+          this.renderList();
+        });
+      },
+
+      renderList() {
+        const listEl = $("teacher-word-list");
+        if (!this.currentWords.length) {
+          listEl.innerHTML =
+            '<p class="text-xs text-slate-500 italic">Chưa có từ nào trong bài này.</p>';
+          return;
+        }
+        const baseUrl = location.origin + location.pathname;
+        listEl.innerHTML = this.currentWords
+          .map((w) => {
+            const deepLink = `${baseUrl}?lesson=${w.lesson}&id=${w.id}`;
+            return `
+          <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+              ${
+                w.image
+                  ? `<img src="${w.image}" class="w-10 h-10 rounded object-cover bg-slate-900">`
+                  : '<div class="w-10 h-10 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-500">No img</div>'
+              }
+              <div>
+                <div class="font-bold text-lg font-jp">${w.kanji}</div>
+                <div class="text-xs text-slate-400">${w.vi}</div>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="teacherMgr.copyLink('${deepLink}')" class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+                <i class="fas fa-link text-xs"></i>
+              </button>
+              <button onclick="teacherMgr.editWord('${w.docId}')" class="w-8 h-8 rounded-full bg-blue-900/50 text-blue-400 flex items-center justify-center">
+                <i class="fas fa-pen text-xs"></i>
+              </button>
+              <button onclick="teacherMgr.deleteWord('${w.docId}')" class="w-8 h-8 rounded-full bg-red-900/50 text-red-400 flex items-center justify-center">
+                <i class="fas fa-trash text-xs"></i>
+              </button>
+            </div>
+          </div>`;
+          })
+          .join("");
+      },
+
+      copyLink(url) {
+        if (navigator.clipboard) {
+          navigator.clipboard
+            .writeText(url)
+            .then(() => showToast("Đã copy link!"))
+            .catch(() => prompt("Copy link:", url));
+        } else {
+          prompt("Copy link:", url);
+        }
+      },
+
+      showAddModal() {
+        $("word-mode").value = "add";
+        $("word-doc-id").value = "";
+        ["inp-id", "inp-kanji", "inp-furigana", "inp-romaji", "inp-vi"].forEach(
+          (id) => ($(id).value = "")
+        );
+        $("inp-image-base64").value = "";
+        $("inp-image-file").value = "";
+        $("preview-image-container").classList.add("hidden");
+        for (let i = 0; i < 5; i++) {
+          $(`inp-ex-jp-${i}`).value = "";
+          $(`inp-ex-vi-${i}`).value = "";
+        }
+        $("modal-word").classList.remove("hidden");
+      },
+
+      editWord(docId) {
+        const w = this.currentWords.find((x) => x.docId === docId);
+        if (!w) return;
+        $("word-mode").value = "edit";
+        $("word-doc-id").value = docId;
+        $("inp-id").value = w.id;
+        $("inp-kanji").value = w.kanji;
+        $("inp-furigana").value = w.furigana;
+        $("inp-romaji").value = w.romaji;
+        $("inp-vi").value = w.vi;
+        $("inp-image-base64").value = w.image || "";
+        if (w.image) {
+          $("preview-image").src = w.image;
+          $("preview-image-container").classList.remove("hidden");
+        } else {
+          $("preview-image-container").classList.add("hidden");
+        }
+        for (let i = 0; i < 5; i++) {
+          $(`inp-ex-jp-${i}`).value = w.examples?.[i]?.jp || "";
+          $(`inp-ex-vi-${i}`).value = w.examples?.[i]?.vi || "";
+        }
+        $("modal-word").classList.remove("hidden");
+      },
+
+      async saveWord() {
+        const docId = $("word-doc-id").value || null;
+        const lesson = this.currentLesson;
+        const id = $("inp-id").value.trim();
+        if (!id) {
+          alert("ID không được để trống");
+          return;
+        }
+
+        const word = {
+          id,
+          lesson: Number(lesson),
+          kanji: $("inp-kanji").value.trim(),
+          furigana: $("inp-furigana").value.trim(),
+          romaji: $("inp-romaji").value.trim(),
+          vi: $("inp-vi").value.trim(),
+          image: $("inp-image-base64").value || "",
+          examples: [],
+        };
+        for (let i = 0; i < 5; i++) {
+          const jp = $(`inp-ex-jp-${i}`).value.trim();
+          const vi = $(`inp-ex-vi-${i}`).value.trim();
+          if (jp && vi) word.examples.push({ jp, vi });
+        }
+
+        try {
+          await cloudWords.saveWord(word, docId);
+          showToast("Đã lưu từ vựng (Firebase)");
+          this.closeModal();
+        } catch (e) {
+          console.error(e);
+          alert("Lỗi lưu Firestore: " + e.message);
+        }
+      },
+
+      async deleteWord(docId) {
+        if (!confirm("Xóa từ này?")) return;
+        try {
+          await cloudWords.deleteWord(docId);
+          showToast("Đã xóa");
+        } catch (e) {
+          alert("Lỗi xóa Firestore: " + e.message);
+        }
+      },
+
+      closeModal() {
+        $("modal-word").classList.add("hidden");
+      },
+    };
+
+    // ====================== STUDENT STUDY ======================
+    const studentStudy = {
+      unsub: null,
+
+      initLesson(lesson) {
+        if (this.unsub) this.unsub();
+        this.unsub = cloudWords.subscribeLesson(lesson, (words) => {
+          session.studyList = words;
+          session.currentIndex = 0;
+          this.render();
+        });
+      },
+
+      render() {
+        const list = session.studyList || [];
+        if (!list.length) {
+          $("fc-current-index").textContent = "0";
+          $("fc-total").textContent = "0";
+          $("fc-kanji-front").textContent = "Chưa có từ";
+          $("fc-image-container-front").classList.add("hidden");
+          $("fc-examples").innerHTML = "";
+          return;
+        }
+        const idx = session.currentIndex;
+        const w = list[idx];
+        $("fc-current-index").textContent = idx + 1;
+        $("fc-total").textContent = list.length;
+        $("fc-progress-bar").style.width = `${
+          ((idx + 1) / list.length) * 100
+        }%`;
+        $("flashcard-inner").parentElement.classList.remove("card-flip");
+
+        $("fc-kanji-front").textContent = w.kanji;
+        if (w.image) {
+          $("fc-image-front").src = w.image;
+          $("fc-image-container-front").classList.remove("hidden");
+        } else $("fc-image-container-front").classList.add("hidden");
+
+        $("fc-kanji-back").innerHTML = generateRubyHtml(w.kanji, w.furigana);
+        $("fc-meaning-vi").textContent = w.vi;
+        $("fc-romaji").textContent = w.romaji || "";
+        if (w.image) {
+          $("fc-image-back").src = w.image;
+          $("fc-image-container-back").classList.remove("hidden");
+        } else $("fc-image-container-back").classList.add("hidden");
+
+        $("fc-examples").innerHTML = (w.examples || [])
+          .map(
+            (ex) => `
+          <div class="bg-black/20 p-2 rounded-lg border border-white/5">
+            <div class="flex justify-between mb-1">
+              <span class="text-blue-300 font-jp">${ex.jp}</span>
+              <i onclick="event.stopPropagation();speakJP('${ex.jp}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i>
+            </div>
+            <div class="text-xs text-slate-300">${ex.vi}</div>
+          </div>`
+          )
+          .join("");
+
+        setTimeout(() => speakJP(w.kanji), 400);
+      },
+
+      flipCard() {
+        const card = $("flashcard-inner").parentElement;
+        card.classList.toggle("card-flip");
+        if (card.classList.contains("card-flip")) {
+          const w = session.studyList[session.currentIndex];
+          speakJP(w.kanji);
+        }
+      },
+
+      prevCard() {
+        if (!session.studyList.length) return;
+        if (session.currentIndex > 0) {
+          session.currentIndex--;
+          this.render();
+        }
+      },
+
+      nextCard() {
+        if (!session.studyList.length) return;
+        if (session.currentIndex < session.studyList.length - 1) {
+          session.currentIndex++;
+          this.render();
+        } else showToast("Đã hết thẻ!");
+      },
+
+      async markStatus(status) {
+        if (!session.user) return;
+        if (!session.studyList.length) return;
+        const w = session.studyList[session.currentIndex];
+        const email = session.user.email;
+
+        const docRef = doc(db, "progress", email);
+        const snap = await getDoc(docRef);
+        let data = {};
+        if (snap.exists()) data = snap.data();
+
+        const progress = data.progress || {};
+        progress[wordDocId(w.lesson, w.id)] = {
+          status,
+          lastReviewed: Date.now(),
+        };
+
+        await cloudProgress.saveStudentProgress(email, {
+          email,
+          name: session.user.name,
+          className: session.user.className || "",
+          progress,
+        });
+
+        showToast("Đã lưu tiến độ");
+        setTimeout(() => this.nextCard(), 200);
+      },
+
+      toggleShuffle() {
+        session.isShuffle = !session.isShuffle;
+        $("btn-shuffle").classList.toggle("text-purple-400", session.isShuffle);
+        const arr = [...session.studyList];
+        if (session.isShuffle) arr.sort(() => Math.random() - 0.5);
+        session.studyList = arr;
+        session.currentIndex = 0;
+        this.render();
+      },
+
+      playAudio() {
+        if (!session.studyList.length) return;
+        speakJP(session.studyList[session.currentIndex].kanji);
+      },
+    };
+
+    // ====================== TEACHER STATS ======================
+    const teacherStats = {
+      refreshClassOptions() {
+        const select = $("teacher-class-select");
+        const docs = session.progressDocs || [];
+        const classes = Array.from(
+          new Set(docs.map((d) => d.className || "Chưa rõ"))
+        );
+        if (!classes.length) {
+          select.innerHTML = '<option value="">(Chưa có dữ liệu)</option>';
+        } else {
+          const current = select.value || "";
+          select.innerHTML =
+            '<option value="">(Tất cả)</option>' +
+            classes.map((c) => `<option value="${c}">${c}</option>`).join("");
+          if (current) select.value = current;
+        }
+      },
+
+      confirmResetAll() {
+        if (
+          confirm(
+            "Xóa toàn bộ tiến độ tất cả học sinh trên Firebase?\nThao tác này không thể hoàn tác!"
+          )
+        ) {
+          cloudProgress
+            .resetAll()
+            .then(() => showToast("Đã xóa toàn bộ tiến độ"))
+            .catch((e) => alert("Lỗi: " + e.message));
+        }
+      },
+
+      confirmResetClass() {
+        const cls = $("teacher-class-select").value;
+        if (!cls) {
+          alert("Hãy chọn lớp trước khi xóa theo lớp.");
+          return;
+        }
+        if (
+          confirm(
+            `Xóa tiến độ của toàn bộ học sinh lớp "${cls}"?\nKhông thể hoàn tác!`
+          )
+        ) {
+          cloudProgress
+            .resetClass(cls)
+            .then(() => showToast("Đã xóa tiến độ lớp " + cls))
+            .catch((e) => alert("Lỗi: " + e.message));
+        }
+      },
+
+      renderStudents() {
+        const container = $("student-list-container");
+        const docs = session.progressDocs || [];
+        if (!docs.length) {
+          container.innerHTML =
+            '<p class="text-xs text-slate-500 italic">Chưa có dữ liệu tiến độ.</p>';
+          return;
+        }
+        const currentClass = $("teacher-class-select").value;
+        const filtered = docs.filter(
+          (d) => !currentClass || (d.className || "") === currentClass
+        );
+        if (!filtered.length) {
+          container.innerHTML =
+            '<p class="text-xs text-slate-500 italic">Không có học sinh trong lớp này.</p>';
+          return;
+        }
+
+        const totalWordsByLesson = {};
+        LESSONS.forEach(
+          (l) => (totalWordsByLesson[l] = (session.wordsByLesson[l] || []).length)
+        );
+        const allWordsTotal =
+          Object.values(totalWordsByLesson).reduce((a, b) => a + b, 0) || 1;
+
+        const idToLesson = {};
+        LESSONS.forEach((l) => {
+          (session.wordsByLesson[l] || []).forEach((w) => {
+            idToLesson[wordDocId(w.lesson, w.id)] = w.lesson;
+          });
+        });
+
+        container.innerHTML = filtered
+          .map((s) => {
+            const progress = s.progress || {};
+            const ids = Object.keys(progress);
+            let mastered = 0,
+              review = 0;
+            ids.forEach((id) => {
+              const st = progress[id].status;
+              if (st === "mastered") mastered++;
+              else if (st === "review") review++;
+            });
+
+            const masteredPercent = Math.round(
+              (mastered / allWordsTotal) * 100
+            );
+
+            const masteredByLesson = {};
+            const attemptedByLesson = {};
+            LESSONS.forEach((l) => {
+              masteredByLesson[l] = 0;
+              attemptedByLesson[l] = 0;
+            });
+
+            ids.forEach((id) => {
+              const lesson = idToLesson[id];
+              if (!lesson) return;
+              attemptedByLesson[lesson]++;
+              if (progress[id].status === "mastered")
+                masteredByLesson[lesson]++;
+            });
+
+            const perLesson = LESSONS.map((l) => {
+              const totalL = totalWordsByLesson[l] || 0;
+              if (!totalL)
+                return `<span class="text-slate-500">Bài ${l}: (chưa có từ)</span>`;
+              const m = masteredByLesson[l] || 0;
+              const done = attemptedByLesson[l] || 0;
+              return `Bài ${l}: <span class="text-green-400 font-semibold">${m}</span> / ${totalL} (thuộc) – đã học <span class="text-blue-400 font-semibold">${done}</span>`;
+            }).join("<br>");
+
+            return `
+          <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 text-xs">
+            <div class="flex justify-between mb-1">
+              <h4 class="font-bold text-sm">${s.name || s.email}</h4>
+              <span class="text-[11px] text-slate-400">${s.id}</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mb-2">
+              Lớp: <span class="text-slate-300">${s.className || "Chưa rõ"}</span>
+            </div>
+            <div class="w-full bg-slate-700 h-2 rounded-full mb-2">
+              <div class="bg-green-500 h-2 rounded-full" style="width:${masteredPercent}%"></div>
+            </div>
+            <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+              <span>Đã thuộc: <span class="text-green-400 font-bold">${mastered}/${allWordsTotal}</span></span>
+              <span>Đã làm: <span class="text-blue-400 font-bold">${ids.length}/${allWordsTotal}</span></span>
+            </div>
+            <div class="text-[11px] text-slate-500 mb-1">
+              Ôn lại: <span class="text-orange-400 font-semibold">${review}</span>
+            </div>
+            <div class="mt-1 text-[11px] text-slate-400 border-t border-slate-700 pt-1 leading-snug">
+              ${perLesson}
+            </div>
+          </div>`;
+          })
+          .join("");
+      },
+    };
+
+    // ====================== KHỞI ĐỘNG ======================
+    window.app = app;
+    window.teacherMgr = teacherMgr;
+    window.studentStudy = studentStudy;
+    window.teacherStats = teacherStats;
+    window.speakJP = speakJP;
+
+    window.onload = () => app.init();
+  </script>
+</body>
+</html>
